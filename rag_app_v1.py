@@ -1,5 +1,6 @@
 import sqlite3
 import json
+import time
 import numpy as np
 import foundry_local_sdk as foundry_local
 
@@ -74,14 +75,20 @@ def rag_asistani_baslat():
         if not kullanici_sorusu:
             continue
 
+        toplam_baslangic = time.perf_counter()
+
         try:
+            embedding_baslangic = time.perf_counter()
             sorgu_yanit = emb_client.generate_embedding(kullanici_sorusu)
             sorgu_vec = sorgu_yanit.data[0].embedding
+            embedding_suresi = time.perf_counter() - embedding_baslangic
         except Exception as e:
             print(f"[Hata] Vektör oluşturulurken bir sorun çıktı: {e}")
             continue
 
+        arama_baslangic = time.perf_counter()
         en_iyi_eslesmeler = en_benzer_parcalari_bul(sorgu_vec, top_k=3)
+        arama_suresi = time.perf_counter() - arama_baslangic
 
         baglam_metni = ""
         kullanilan_kaynaklar = set()
@@ -104,10 +111,18 @@ def rag_asistani_baslat():
                 {"role": "user", "content": prompt}
             ]
             
+            llm_baslangic = time.perf_counter()
             yanit_objesi = chat_client.complete_chat(messages=mesajlar)
             cevap = yanit_objesi.choices[0].message.content
+            llm_suresi = time.perf_counter() - llm_baslangic
+            toplam_sure = time.perf_counter() - toplam_baslangic
             
             print(f"\nAsistan:\n{cevap.strip()}")
+            print("\n--- PERFORMANS ÖLÇÜMÜ ---")
+            print(f"Embedding süresi : {embedding_suresi:.4f} saniye")
+            print(f"Arama süresi     : {arama_suresi:.4f} saniye")
+            print(f"LLM cevap süresi : {llm_suresi:.4f} saniye")
+            print(f"Toplam süre      : {toplam_sure:.4f} saniye")
             
         except Exception as e:
             print(f"Model yanıt üretirken hata oluştu: {e}")
